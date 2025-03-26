@@ -1,63 +1,55 @@
 import streamlit as st
 import joblib
 import numpy as np
+import matplotlib.pyplot as plt
 
-# Cargar el modelo SVM y el escalador
-modelo_svm = joblib.load("modelo_svm.joblib")
+# Cargar modelo y scaler
+model = joblib.load("modelo_svm.joblib")
 scaler = joblib.load("scaler.joblib")
 
-# Título de la aplicación
-st.title("🌍 Predicción de Calidad del Aire")
+# Función para escalar valores de entrada
+def scale_input(values):
+    scaled = scaler.transform([values])
+    return np.clip(scaled, 0, 1)  # Asegurar que los valores estén en [0,1]
 
-# Agregar imagen
-st.image("https://www.mexicosocial.org/wp-content/uploads/2022/05/DEFENDER-EL-AIRE-LIMPIO.jpg", 
-         caption="Defender el Aire Limpio", 
-         use_container_width=True)
+# Configuración de la app
+st.set_page_config(layout="wide")
+st.markdown("# 🌍 Predicción de Calidad del Aire")
 
-# Sección de entrada de datos en columnas
-st.sidebar.header("Ingrese los valores:")
+# Sidebar para entrada de datos
+st.sidebar.markdown("### 🏡 Ingrese los valores:")
+PM10 = st.sidebar.slider("PM10", 0.0, 300.0, 50.0)
+NO2 = st.sidebar.slider("NO2", 0.0, 200.0, 30.0)
+Humedad = st.sidebar.slider("Humedad (%)", 0.0, 100.0, 50.0)
+PM2_5 = st.sidebar.slider("PM2.5", 0.0, 200.0, 25.0)
+O3 = st.sidebar.slider("O3", 0.0, 300.0, 100.0)
+Lluvia = st.sidebar.slider("Lluvia (mm)", 0.0, 100.0, 5.0)
+Temperatura = st.sidebar.slider("Temperatura (°C)", -10.0, 50.0, 25.0)
+Vel_Viento = st.sidebar.slider("Vel. Viento (m/s)", 0.0, 20.0, 5.0)
+Dir_Viento = st.sidebar.slider("Dir. Viento (°)", 0.0, 360.0, 180.0)
 
-col1, col2, col3 = st.sidebar.columns(3)
-
-with col1:
-    PM10 = st.number_input("PM10", min_value=0.0, format="%.2f")
-    NO2 = st.number_input("NO2", min_value=0.0, format="%.2f")
-    HUMEDAD = st.number_input("Humedad (%)", min_value=0.0, max_value=100.0, format="%.2f")
-
-with col2:
-    PM25 = st.number_input("PM2.5", min_value=0.0, format="%.2f")
-    O3 = st.number_input("O3", min_value=0.0, format="%.2f")
-    LLUVIA = st.number_input("Lluvia (mm)", min_value=0.0, format="%.2f")
-
-with col3:
-    TEMPERATURA = st.number_input("Temperatura (°C)", min_value=-10.0, max_value=50.0, format="%.2f")
-    VEL_VIENTO = st.number_input("Vel. Viento (m/s)", min_value=0.0, format="%.2f")
-    DIR_VIENTO = st.number_input("Dir. Viento (°)", min_value=0.0, max_value=360.0, format="%.2f")
-
-# Botón para predecir
+# Botón de predicción
 if st.sidebar.button("🔍 Predecir Calidad del Aire"):
-    # Convertir datos a array (SOLO 9 características)
-    datos = np.array([[PM10, PM25, NO2, O3, HUMEDAD, LLUVIA, TEMPERATURA, VEL_VIENTO, DIR_VIENTO]])
-
-    # Escalar los datos
-    datos_escalados = scaler.transform(datos)
-
-    # Mostrar los valores escalados en una sola línea
-    st.write("🔎 Valores escalados:", ", ".join(map(lambda x: f"{x:.4f}", datos_escalados[0])))
-
-    # Realizar la predicción
-    prediccion = modelo_svm.predict(datos_escalados)[0]
-
-    # Asignar color según la calidad del aire
-    colores = {"Buena": "🟢", "Regular": "🟡", "Mala": "🔴"}
-    st.subheader("🌤️ Resultado de la Predicción")
-    st.markdown(f"### {colores.get(prediccion, '⚪')} La calidad del aire es: **{prediccion}**")
-
-    # Mensajes de recomendación según la calidad del aire
-    recomendaciones = {
-        "Buena": "✅ El aire es saludable. Puede realizar actividades al aire libre sin restricciones.",
-        "Regular": "⚠️ Personas sensibles (niños, ancianos y personas con enfermedades respiratorias) deben limitar actividades al aire libre.",
-        "Mala": "🚨 Se recomienda evitar actividades al aire libre. Grupos vulnerables deben permanecer en interiores con ventanas cerradas."
-    }
+    input_values = np.array([PM10, NO2, Humedad, PM2_5, O3, Lluvia, Temperatura, Vel_Viento, Dir_Viento])
+    input_scaled = scale_input(input_values)
     
-    st.info(recomendaciones.get(prediccion, "No hay recomendaciones disponibles."))
+    # Mostrar valores escalados
+    st.markdown("### 🎨 Valores escalados:")
+    st.dataframe({"value": input_scaled.flatten()})
+    
+    # Realizar predicción
+    prediction = model.predict(input_scaled)[0]
+    
+    # Mostrar resultado
+    if prediction == "Buena":
+        color, message = "#4CAF50", "🟢 La calidad del aire es: Buena"
+    elif prediction == "Regular":
+        color, message = "#FFC107", "🟡 La calidad del aire es: Regular"
+    else:
+        color, message = "#D32F2F", "🔴 La calidad del aire es: Mala"
+    
+    st.markdown(f'<div style="background-color:{color}; padding: 15px; border-radius: 10px; text-align: center;">{message}</div>', unsafe_allow_html=True)
+    
+    # Recomendaciones
+    if prediction == "Mala":
+        st.markdown("💨 Se recomienda evitar actividades al aire libre. Grupos vulnerables deben permanecer en interiores con ventanas cerradas.")
